@@ -1,18 +1,22 @@
-//---- Library Includes -----//
+//---- Libraries -----//
 
 #include <Arduino_LSM9DS1.h>
+#include <Wire.h>
 
 
 //----- Pinout -----//
 
-const int knockSensorPin = 5;
-const int vibrationPin = 4;   // only DAC pin
+const int knockSensorPin = 5; // A1
+const int vibrationPin = 4;   // DAC0 (only DAC pin)
+//pin 8: I2C SDA
+//pin 9: I2C SCL
 
 
 //----- Constants ----//
 
 const int knockSensorThreshold = 100;
-int vibrationDuration = 1500; // how long the tangible vibrates in ms
+const int vibrationDuration = 1500; // duration of the vibration in ms
+const int I2CAddress = 0x3E;  // the address of the first address of the I2C module (sx1509) (second address: 0x3F, third: 0x70, fourth: 0x71)
 
 
 //----- Variables -----//
@@ -29,6 +33,7 @@ int acceleroDegreesZ = 0;
 void setup() {
   testOutputInit();
   //accelerometerInit();
+  //lightsInit();
 }
 
 void loop() {
@@ -36,6 +41,7 @@ void loop() {
   //accelerometer();
   //knockSensor();
   //vibration();
+  //lights(0XFF);
 }
 
 
@@ -76,10 +82,12 @@ void testOutput() {
 }
 
 void lightsInit() {
-
+  Wire.begin(); // join i2c bus
 }
-void lights() { // sx1509 io expander using I2C: https://docs.arduino.cc/learn/communication/wire or https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
-
+void lights(int data) { // sx1509 io expander using I2C: https://docs.arduino.cc/learn/communication/wire or https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
+  Wire.beginTransmission(I2CAddress);
+  Wire.write(data);
+  Wire.endTransmission();
 }
 
 void vibration() { // just plain DAC
@@ -95,7 +103,9 @@ void sound() { // Adafruit Zero I2S library: https://learn.adafruit.com/adafruit
 
 }
 
+
 //----- Bluetooth -----//
+
 void bleInit() {
 
 }
