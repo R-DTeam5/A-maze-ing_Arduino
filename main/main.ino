@@ -14,7 +14,7 @@ const int vibrationPin = 4;   // DAC0 (only DAC pin)
 
 //----- Constants ----//
 
-const int knockSensorThreshold = 100;
+const int knockSensorThreshold = 100; // the value of the knocksensor above which the input is considered a valid knock (needs to be calibrated)
 const int vibrationDuration = 1500; // duration of the vibration in ms
 const int I2CAddress = 0x3E;  // the address of the first address of the I2C module (sx1509) (second address: 0x3F, third: 0x70, fourth: 0x71)
 
@@ -23,25 +23,34 @@ const int I2CAddress = 0x3E;  // the address of the first address of the I2C mod
 
 bool KnockSensorHit = false;  // true when the knocksensor input gets over knockThreshold, needs to be set to false when read by ble
 int vibrationIntensity = 0;   // value between 0 and 255: 0 = now vibration, 255 = full vibration (needs to be calibrated)
-int acceleroDegreesX = 0;     // value of the angle between -90° and 90°
-int acceleroDegreesY = 0;
-int acceleroDegreesZ = 0;
+float acceleroX = 0;
+float acceleroY = 0;
+float acceleroZ = 0;
 
 
 //----- Main Functions -----//
 
 void setup() {
+  //PCInit();
   testOutputInit();
-  //accelerometerInit();
+  accelerometerInit();
   //lightsInit();
 }
 
 void loop() {
-  testOutput();
-  //accelerometer();
+  //testOutput();
+  accelerometer();
   //knockSensor();
   //vibration();
   //lights(0XFF);
+}
+
+//----- PC_IO ----//
+
+void PCInit() {       // To be able to print on the pc screen during testing (print with Serial.println())
+  Serial.begin(9600);
+  while (!Serial);
+  Serial.println("Started");
 }
 
 
@@ -53,15 +62,14 @@ void accelerometerInit() {
   }
 }
 void accelerometer() { // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
-  float x, y, z;
-  if (IMU.accelerationAvailable())  IMU.readAcceleration(x, y, z);
-  x *= 100;
-  y *= 100;
-  z *= 100;
+  if (IMU.accelerationAvailable()) IMU.readAcceleration(acceleroX, acceleroY, acceleroZ);
 
-  acceleroDegreesX = map(x, -100, 97, -90, 90);
-  acceleroDegreesY = map(y, -100, 97, -90, 90);
-  acceleroDegreesZ = map(z, -100, 97, -90, 90);
+  Serial.print("x: ");
+  Serial.print(acceleroX);
+  Serial.print("\ty:");
+  Serial.print(acceleroY);
+  Serial.print("\tz: ");
+  Serial.println(acceleroZ);
 }
 
 void knockSensor() { // just plain ADC
