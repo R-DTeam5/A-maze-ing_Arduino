@@ -31,8 +31,8 @@ float acceleroZ = 0;
 //----- Main Functions -----//
 
 void setup() {
-  //PCInit();
-  testOutputInit();
+  PCInit();
+  //testOutputInit();
   accelerometerInit();
   //lightsInit();
 }
@@ -43,6 +43,7 @@ void loop() {
   //knockSensor();
   //vibration();
   //lights(0XFF);
+  delay(10);
 }
 
 //----- PC_IO ----//
@@ -64,11 +65,10 @@ void accelerometerInit() {
 void accelerometer() { // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
   if (IMU.accelerationAvailable()) IMU.readAcceleration(acceleroX, acceleroY, acceleroZ);
 
-  Serial.print("x: ");
   Serial.print(acceleroX);
-  Serial.print("\ty:");
+  Serial.print(",");
   Serial.print(acceleroY);
-  Serial.print("\tz: ");
+  Serial.print(",");
   Serial.println(acceleroZ);
 }
 
