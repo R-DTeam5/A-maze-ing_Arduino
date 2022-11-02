@@ -2,8 +2,6 @@
 
 #include <Arduino_LSM9DS1.h>
 #include <Wire.h>
-#include <threads.h>
-
 
 //----- Pinout -----//
 
