@@ -2,6 +2,9 @@
 
 #include <Arduino_LSM9DS1.h>
 #include <Wire.h>
+#include <Scheduler.h>
+#include <ArduinoBLE.h>
+
 
 //----- Pinout -----//
 
@@ -13,38 +16,47 @@ const int vibrationPin = A0;    // DAC0 (only DAC pin)
 
 //----- Constants ----//
 
-const int knockSensorThreshold = 100;  // the value of the knocksensor above which the input is considered a valid knock (needs to be calibrated)
-const int vibrationDuration = 1500;    // duration of the vibration in ms
-const int I2CAddress = 0x3E;           // the address of the first address of the I2C module (sx1509) (second address: 0x3F, third: 0x70, fourth: 0x71)
+const int knockSensorThreshold = 100;   // the value of the knocksensor above which the input is considered a valid knock (needs to be calibrated)
+const int vibrationDuration = 500;      // duration of the vibration in ms
+const int I2CAddress = 0x3E;            // the address of the first address of the I2C module (sx1509) (second address: 0x3F, third: 0x70, fourth: 0x71)
 
+BLEService accService("a00f1c3c-5c43-11ed-9b6a-0242ac120002"); // create service with random UUID derived from https://www.uuidgenerator.net/version1
+BLEByteCharacteristic accXCharacteristic("ea828f0a-5c44-11ed-9b6a-0242ac120002", BLERead | BLENotify);
+BLEByteCharacteristic accYCharacteristic("ea9093f8-5c57-11ed-9b6a-0242ac120002", BLERead | BLENotify);
+BLEByteCharacteristic accZCharacteristic("ef2e9176-5c57-11ed-9b6a-0242ac120002", BLERead | BLENotify);
 
 //----- Variables -----//
 
-bool KnockSensorHit = false;  // true when the knocksensor input gets over knockThreshold, needs to be set to false when read by ble
+bool KnockSensorHit = false;    // true when the knocksensor input gets over knockThreshold, needs to be set to false when read by ble
 int vibrationIntensity = 255;   // value between 0 and 255: 0 = no vibration, 255 = full vibration (needs to be calibrated)
-float acceleroX = 0;
-float acceleroY = 0;
-float acceleroZ = 0;
+PinStatus buildInLED = LOW;
 
 
 //----- Main Functions -----//
 
 void setup() 
 {
-  serialInit();
+  //serialInit();     // To be able to test with a wire
+
   accelerometerInit();
   //lightsInit();
+  bleInit();
+  Scheduler.startLoop(accelerometerBLELoop);
 }
 
 void loop() 
 {
-  //testOutput();
-  accelerometer();
-  //knockSensor();
+  //accelerometerWire();      // To be able to test with a wire
+  //if (Serial.available() > 0) serialIn();     // To be able to test with a wire
+
+  //knockSensor();      // These will probably become interrupts
   //vibration();
   //lights(0XFF);
-  if (Serial.available() > 0) serialIn();
-  delay(10);
+
+  buildInLED = buildInLED ? LOW : HIGH;
+  digitalWrite(LED_BUILTIN, buildInLED);
+  delay(1000);
+  yield();
 }
 
 //----- PC_IO ----//
@@ -77,35 +89,41 @@ void accelerometerInit()
     delay(100);
   }
 }
-void accelerometer()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
+void accelerometerWire()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
 {
+  float acceleroX = 0, acceleroY = 0, acceleroZ = 0;
   if (IMU.accelerationAvailable()) IMU.readAcceleration(acceleroX, acceleroY, acceleroZ);
 
-  String str = "";
-  str.concat(acceleroX);
-  str.concat(",");
-  str.concat(acceleroY);
-  str.concat(",");
-  str.concat(acceleroZ);
+  String acceleroData = "";
+  acceleroData.concat(acceleroX);
+  acceleroData.concat(",");
+  acceleroData.concat(acceleroY);
+  acceleroData.concat(",");
+  acceleroData.concat(acceleroZ);
 
-  Serial.println(str);
+  Serial.println(acceleroData);
+}
+void accelerometerBLELoop()
+{
+  float acceleroX = 0, acceleroY = 0, acceleroZ = 0;
+  if (IMU.accelerationAvailable()) IMU.readAcceleration(acceleroX, acceleroY, acceleroZ);
+  if(accXCharacteristic.value() != acceleroX) accXCharacteristic.writeValue(acceleroX);
+  if(accYCharacteristic.value() != acceleroY) accYCharacteristic.writeValue(acceleroY);
+  if(accZCharacteristic.value() != acceleroZ) accZCharacteristic.writeValue(acceleroZ);
+
+  delay(10);
+  yield();
 }
 
 void knockSensor()  // just plain ADC
 {
-  if (analogRead(knockSensorPin) >= knockSensorThreshold) KnockSensorHit = true;
+  int knockValue = analogRead(knockSensorPin);
+  KnockSensorHit = knockValue >= knockSensorThreshold;
+  //Serial.println(knockValue);
 }
 
 
 //----- Outputs -----//
-
-void testOutput() 
-{
-  digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
-  delay(100);                       // wait for a second
-  digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
-  delay(100);                       // wait for a second
-}
 
 void lightsInit() 
 {
@@ -127,9 +145,25 @@ void vibration()  // just plain DAC
 
 //----- Bluetooth -----//
 
-void bleInit() {
-}
-void ble()  // https://assetstore.unity.com/packages/tools/input-management/arduino-bluetooth-plugin-98960#content
+void bleInit() 
 {
+  while (!BLE.begin())
+  {
+    delay(100);
+  }
 
+  BLE.setLocalName("A-Maze-Ing");
+  BLE.setAdvertisedService(accService);
+
+  accService.addCharacteristic(accXCharacteristic);
+  accService.addCharacteristic(accYCharacteristic);
+  accService.addCharacteristic(accZCharacteristic);
+
+  BLE.addService(accService);
+
+  accXCharacteristic.writeValue(0);
+  accYCharacteristic.writeValue(0);
+  accZCharacteristic.writeValue(0);
+
+  BLE.advertise();
 }
