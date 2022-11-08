@@ -21,6 +21,7 @@ const int knockSensorThreshold = 100;   // the value of the knocksensor above wh
 const int vibrationDuration = 500;      // duration of the vibration in ms
 const int I2CAddress = 0x3E;            // the address of the first address of the I2C module (sx1509) (second address: 0x3F, third: 0x70, fourth: 0x71)
 
+
 //----- Variables -----//
 
 bool KnockSensorHit = false;    // true when the knocksensor input gets over knockThreshold, needs to be set to false when read by ble
@@ -32,21 +33,22 @@ PinStatus buildInLED = LOW;
 
 void setup() 
 {
-  serialInit();     // To be able to test with a wire
-  //Serial1.begin(9600);  // UART that uses pins TX and RX to communicate with the bluetooth module
+  Serial.begin(9600);     // To connect the arduino using a wire
+  Serial1.begin(9600);    // UART that uses pins TX and RX to communicate with the bluetooth module
 
   IMUInit();
-  //lightsInit();
-  Scheduler.startLoop(IMU);
+  // lightsInit();
+  Scheduler.startLoop(_IMU);
 }
 
 void loop() 
 {
-  //if (Serial.available() > 0) serialIn();     // To be able to test with a wire
+  if (Serial.available() > 0) serialIn((char)Serial.read());     // Read the incomming data when the arduino is connected using a wire
+  if (Serial1.available() > 0) serialIn((char)Serial1.read());   // Read the incomming data when the arduino is connected using a wire
 
-  //knockSensor();      // These will probably become interrupts
-  //vibration();
-  //lights(0XFF);
+  // knockSensor();      // These will probably become interrupts
+  // vibration();
+  // lights(0XFF);
 
   buildInLED = buildInLED ? LOW : HIGH;
   digitalWrite(LED_BUILTIN, buildInLED);
@@ -54,18 +56,11 @@ void loop()
   yield();
 }
 
+
 //----- PC_IO ----//
 
-void serialInit() 
+void serialIn(char inChar) 
 {
-  Serial.begin(9600);
-  while (!Serial);
-}
-
-void serialIn() 
-{
-  char inChar = (char)Serial.read();
-
   switch (inChar) 
   {
     case '1':
@@ -84,9 +79,10 @@ void IMUInit()
     delay(100);
   }
 }
-void IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
+void _IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
 {
-  float acceleroX = 0, acceleroY = 0, acceleroZ = 0, gyroX = 0, gyroY = 0, gyroZ = 0;
+  float acceleroX = 0, acceleroY = 0, acceleroZ = 0;
+  float gyroX = 0, gyroY = 0, gyroZ = 0;
   if (IMU.accelerationAvailable()) IMU.readAcceleration(acceleroX, acceleroY, acceleroZ);
   if (IMU.gyroscopeAvailable()) IMU.readGyroscope(gyroX, gyroY, gyroZ);  // sample rate is 119 Hz
 
@@ -99,15 +95,18 @@ void IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
   IMUData.concat(",");
   IMUData.concat(gyroZ);
 
-  Serial.println(IMUData);
-  //Serial1.println(IMUData);
+  if(Serial) Serial.println(IMUData);
+  if(Serial1) Serial1.println(IMUData);
+
+  delay(10);
+  yield();
 }
 
 void knockSensor()  // just plain ADC
 {
   int knockValue = analogRead(knockSensorPin);
   KnockSensorHit = knockValue >= knockSensorThreshold;
-  //Serial.println(knockValue);
+  // Serial.println(knockValue);
 }
 
 
