@@ -32,12 +32,12 @@ PinStatus buildInLED = LOW;
 
 void setup() 
 {
-  //serialInit();     // To be able to test with a wire
-  Serial1.begin(9600);  // UART that uses pins TX and RX to communicate with the bluetooth module
+  serialInit();     // To be able to test with a wire
+  //Serial1.begin(9600);  // UART that uses pins TX and RX to communicate with the bluetooth module
 
-  accelerometerInit();
+  IMUInit();
   //lightsInit();
-  Scheduler.startLoop(accelerometer);
+  Scheduler.startLoop(IMU);
 }
 
 void loop() 
@@ -77,27 +77,30 @@ void serialIn()
 
 //----- Inputs -----//
 
-void accelerometerInit() 
+void IMUInit() 
 {
   while (!IMU.begin())  // try to start the accelerometer, if it does not connect try again in 100ms
   {
     delay(100);
   }
 }
-void accelerometer()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
+void IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
 {
-  float acceleroX = 0, acceleroY = 0, acceleroZ = 0;
+  float acceleroX = 0, acceleroY = 0, acceleroZ = 0, gyroX = 0, gyroY = 0, gyroZ = 0;
   if (IMU.accelerationAvailable()) IMU.readAcceleration(acceleroX, acceleroY, acceleroZ);
+  if (IMU.gyroscopeAvailable()) IMU.readGyroscope(gyroX, gyroY, gyroZ);  // sample rate is 119 Hz
 
-  String acceleroData = "";
-  acceleroData.concat(acceleroX);
-  acceleroData.concat(",");
-  acceleroData.concat(acceleroY);
-  acceleroData.concat(",");
-  acceleroData.concat(acceleroZ);
+  String IMUData = "";
+  IMUData.concat(acceleroX);
+  IMUData.concat(",");
+  IMUData.concat(acceleroY);
+  IMUData.concat(",");
+  IMUData.concat(acceleroZ);
+  IMUData.concat(",");
+  IMUData.concat(gyroZ);
 
-  //Serial.println(acceleroData);
-  Serial1.println(acceleroData);
+  Serial.println(IMUData);
+  //Serial1.println(IMUData);
 }
 
 void knockSensor()  // just plain ADC
