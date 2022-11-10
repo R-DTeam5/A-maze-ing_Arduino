@@ -27,6 +27,7 @@ const int I2CAddress = 0x3E;            // the address of the first address of t
 bool KnockSensorHit = false;    // true when the knocksensor input gets over knockThreshold, needs to be set to false when read by ble
 int vibrationIntensity = 255;   // value between 0 and 255: 0 = no vibration, 255 = full vibration (needs to be calibrated)
 PinStatus buildInLED = LOW;
+int delay_test = 10;
 
 
 //----- Main Functions -----//
@@ -34,17 +35,17 @@ PinStatus buildInLED = LOW;
 void setup() 
 {
   Serial.begin(9600);     // To connect the arduino using a wire
-  Serial1.begin(9600);    // UART that uses pins TX and RX to communicate with the bluetooth module
+  // Serial1.begin(9600);    // UART that uses pins TX and RX to communicate with the bluetooth module
 
-  IMUInit();
   // lightsInit();
+  IMUInit();
   Scheduler.startLoop(_IMU);
 }
 
 void loop() 
 {
-  if (Serial.available() > 0) serialIn((char)Serial.read());     // Read the incomming data when the arduino is connected using a wire
-  if (Serial1.available() > 0) serialIn((char)Serial1.read());   // Read the incomming data when the arduino is connected using a wire
+  if (Serial.available() > 0) serialIn(Serial.readStringUntil('\n'));     // Read the incomming data when the arduino is connected using a wire
+  if (Serial1.available() > 0) serialIn(Serial1.readStringUntil('\n'));   // Read the incomming data when the arduino is connected using a wire
 
   // knockSensor();      // These will probably become interrupts
   // vibration();
@@ -59,12 +60,18 @@ void loop()
 
 //----- PC_IO ----//
 
-void serialIn(char inChar) 
+void serialIn(String inString) 
 {
-  switch (inChar) 
+  switch (inString.charAt(0)) 
   {
     case '1':
       vibration();
+      break;
+
+    case 'd':
+      inString.remove(0,2); // remove the "d,"
+      delay_test = inString.toInt();
+      if(delay_test == 0) delay_test = 10;
       break;
   }
 }
@@ -98,7 +105,9 @@ void _IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
   if(Serial) Serial.println(IMUData);
   if(Serial1) Serial1.println(IMUData);
 
-  delay(10);
+  for(int i = 0; i < delay_test; i++) delay(1); // to test the length of the delay
+
+  // delay(10);
   yield();
 }
 
