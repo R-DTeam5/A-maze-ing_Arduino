@@ -7,25 +7,24 @@
 
 //----- Pinout -----//
 
-const int vibrationPin = A0;    // pin 4 (only DAC pin)
-const int knockSensorPin = A1;  // pin 5
-// pin 8: I2C SDA
-// pin 9: I2C SCL
+#define VIBRATIONPIN   A0     // pin 4 (only DAC pin)
+#define KNOCKSENSORPIN A1     // pin 5
+// pin 8: I2C SDA for LEDS
+// pin 9: I2C SCL for LEDS
 // pin 16: TX Used for UART with bluetooth module
 // pin 17: RX Used for UART with bluetooth module
 
 
 //----- Constants ----//
 
-const int knockSensorThreshold = 100;   // the value of the knocksensor above which the input is considered a valid knock (needs to be calibrated)
-const int vibrationDuration = 500;      // duration of the vibration in ms
-const int I2CAddress = 0x3E;            // the address of the first address of the I2C module (sx1509) (second address: 0x3F, third: 0x70, fourth: 0x71)
+#define KNOCKSENSOR_THRESHOLD 100     // the value of the knocksensor above which the input is considered a valid knock (needs to be calibrated)
+#define VIBRATION_DURATION 500        // duration of the vibration in ms
+#define I2C_ADDRESS 0x3E              // the address of the first address of the I2C module (sx1509) (second address: 0x3F, third: 0x70, fourth: 0x71)
 
 
 //----- Variables -----//
 
 bool KnockSensorHit = false;    // true when the knocksensor input gets over knockThreshold, needs to be set to false when read by ble
-int vibrationIntensity = 255;   // value between 0 and 255: 0 = no vibration, 255 = full vibration (needs to be calibrated)
 PinStatus buildInLED = LOW;
 
 
@@ -33,17 +32,17 @@ PinStatus buildInLED = LOW;
 
 void setup() 
 {
-  Serial.begin(9600);     // To connect the arduino using a wire
+  // Serial.begin(9600);     // To connect the arduino using a wire
   Serial1.begin(9600);    // UART that uses pins TX and RX to communicate with the bluetooth module
 
-  IMUInit();
   // lightsInit();
+  IMUInit();
   Scheduler.startLoop(_IMU);
 }
 
 void loop() 
 {
-  if (Serial.available() > 0) serialIn((char)Serial.read());     // Read the incomming data when the arduino is connected using a wire
+  // if (Serial.available() > 0) serialIn((char)Serial.read());     // Read the incomming data when the arduino is connected using a wire
   if (Serial1.available() > 0) serialIn((char)Serial1.read());   // Read the incomming data when the arduino is connected using a wire
 
   // knockSensor();      // These will probably become interrupts
@@ -95,17 +94,17 @@ void _IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
   IMUData.concat(",");
   IMUData.concat(gyroZ);
 
-  if(Serial) Serial.println(IMUData);
+  // if(Serial) Serial.println(IMUData);
   if(Serial1) Serial1.println(IMUData);
 
-  delay(10);
+  delay(100);
   yield();
 }
 
 void knockSensor()  // just plain ADC
 {
-  int knockValue = analogRead(knockSensorPin);
-  KnockSensorHit = knockValue >= knockSensorThreshold;
+  int knockValue = analogRead(KNOCKSENSORPIN);
+  KnockSensorHit = knockValue >= KNOCKSENSOR_THRESHOLD;
   // Serial.println(knockValue);
 }
 
@@ -118,14 +117,14 @@ void lightsInit()
 }
 void lights(int data)  // sx1509 io expander using I2C: https://docs.arduino.cc/learn/communication/wire or https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
 {
-  Wire.beginTransmission(I2CAddress);
+  Wire.beginTransmission(I2C_ADDRESS);
   Wire.write(data);
   Wire.endTransmission();
 }
 
 void vibration()  // just plain DAC
 {
-  analogWrite(vibrationPin, vibrationIntensity);
-  delay(vibrationDuration);
-  analogWrite(vibrationPin, 0);
+  analogWrite(VIBRATIONPIN, 255);
+  delay(VIBRATION_DURATION);
+  analogWrite(VIBRATIONPIN, 0);
 }
