@@ -6,18 +6,17 @@
 
 
 //----- Pinout -----//
-
-#define VIBRATIONPIN   A0     // pin 4 (only DAC pin)
+// pin 4 - 7 & 10 - 11 : Vibration
 // pin 8: I2C SDA for LEDS
 // pin 9: I2C SCL for LEDS
 // pin 16: TX Used for UART with bluetooth module
 // pin 17: RX Used for UART with bluetooth module
-#define KNOCKPIN_FRONT  20    // D2
-#define KNOCKPIN_BACK   21    // D3
-#define KNOCKPIN_LEFT   22    // D4
-#define KNOCKPIN_RIGHT  23    // D5
-#define KNOCKPIN_TOP    24    // D6
-#define KNOCKPIN_BOTTOM 25    // D7
+#define KNOCKPIN_FRONT  D2    // D2 pin : 20
+#define KNOCKPIN_BACK   D3    // D3 pin : 21
+#define KNOCKPIN_LEFT   D4    // D4 pin : 22
+#define KNOCKPIN_RIGHT  D5    // D5 pin : 23
+#define KNOCKPIN_TOP    D6    // D6 pin : 24
+#define KNOCKPIN_BOTTOM D7    // D7 pin : 25
 
 
 //----- Constants ----//
@@ -30,6 +29,7 @@
 
 PinStatus buildInLED = LOW;
 static unsigned long delay_test = 100;
+String vibrationOutput = "";
 
 
 //----- Main Functions -----//
@@ -39,6 +39,7 @@ void setup()
   Serial.begin(9600);     // To connect the arduino using a wire
   Serial1.begin(9600);    // UART that uses pins TX and RX to communicate with the bluetooth module
 
+  vibrationSetup();
   knockSetup();
   // lightsInit();
   IMUInit();
@@ -61,6 +62,12 @@ void checkInput()
 {
   if (Serial.available() > 0) serialIn(Serial.readStringUntil('\n'));     // Read the incomming data when the arduino is connected using a wire
   if (Serial1.available() > 0) serialIn(Serial1.readStringUntil('\n'));   // Read the incomming data when the arduino is connected using a wire
+
+  if(vibrationOutput.length() > 0) 
+  {
+    if(Serial) Serial.println(vibrationOutput);
+    if(Serial1) Serial1.println(vibrationOutput);
+  }
 
   delay(delay_test);
   yield();
@@ -130,49 +137,43 @@ void _IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
 
 void knockSetup()
 {
-  pinMode(KNOCKPIN_FRONT,   INPUT);
-  pinMode(KNOCKPIN_BACK,    INPUT);
+  pinMode(KNOCKPIN_FRONT,   INPUT_PULLUP);
+  pinMode(KNOCKPIN_BACK,    INPUT_PULLUP);
   pinMode(KNOCKPIN_LEFT,    INPUT);
   pinMode(KNOCKPIN_RIGHT,   INPUT);
   pinMode(KNOCKPIN_TOP,     INPUT);
-  pinMode(KNOCKPIN_BOTTOM,  INPUT);
+  pinMode(KNOCKPIN_BOTTOM,  INPUT_PULLUP);
 
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_FRONT),   knockFront,   LOW);
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_BACK),    knockBack,    LOW);
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_LEFT),    knockLeft,    LOW);
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_RIGHT),   knockRight,   LOW);
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_TOP),     knockTop,     LOW);
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_BOTTOM),  knockBottom,  LOW);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_FRONT),   knockFront,   FALLING);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_BACK),    knockBack,    RISING);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_LEFT),    knockLeft,    RISING);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_RIGHT),   knockRight,   RISING);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_TOP),     knockTop,     RISING);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_BOTTOM),  knockBottom,  FALLING);
 }
 void knockFront()
 {
-  if(Serial) Serial.println("k,front");
-  if(Serial1) Serial1.println("k,front");
+  vibrationOutput += "k,front\n"
 }
 void knockBack()
 {
-  if(Serial) Serial.println("k,back");
-  if(Serial1) Serial1.println("k,back");
+  vibrationOutput += "k,back\n"
 }
 void knockLeft()
 {
-  if(Serial) Serial.println("k,left");
-  if(Serial1) Serial1.println("k,left");
+  vibrationOutput += "k,left\n"
 }
 void knockRight()
 {
-  if(Serial) Serial.println("k,right");
-  if(Serial1) Serial1.println("k,right");
+  vibrationOutput += "k,right\n"
 }
 void knockTop()
 {
-  if(Serial) Serial.println("k,top");
-  if(Serial1) Serial1.println("k,top");
+  vibrationOutput += "k,top\n"
 }
 void knockBottom()
 {
-  if(Serial) Serial.println("k,bottom");
-  if(Serial1) Serial1.println("k,bottom");
+  vibrationOutput += "k,bottom\n"
 }
 
 
@@ -189,10 +190,25 @@ void lights(int data)  // sx1509 io expander using I2C: https://docs.arduino.cc/
   Wire.endTransmission();
 }
 
+void vibrationSetup()
+{
+  pinMode(A0, OUTPUT);
+  pinMode(A1, OUTPUT);
+  pinMode(A2, OUTPUT);
+  pinMode(A3, OUTPUT);
+  pinMode(A6, OUTPUT);
+  pinMode(A7, OUTPUT);
+}
 void vibration(int pin, int dutyCycle, unsigned long duration)  // GPIO with PWM, pin between 4 - 7 and 10 - 11, dutyCycle between 0 and 255, 
 {
-  if (pin < 4 || pin == 8 || pin == 9 || pin > 11) return;
   if (dutyCycle < 0 || dutyCycle > 255) return;
+  if(pin == 4) pin = A0;
+  else if(pin == 5) pin = A1;
+  else if(pin == 6) pin = A2;
+  else if(pin == 7) pin = A3;
+  else if(pin == 10) pin = A6;
+  else if(pin == 11) pin = A7;
+  else return;
 
   analogWrite(pin, dutyCycle);
   delay(duration);
