@@ -2,13 +2,13 @@
 
 #include <Arduino_LSM9DS1.h>
 #include <Wire.h>
+#include <SparkFunSX1509.h>
 #include <Scheduler.h>
 
 
 //----- Pinout -----//
-// pin 4 - 7 & 10 - 11 : Vibration
-// pin 8: I2C SDA for LEDS
-// pin 9: I2C SCL for LEDS
+// pin 8: I2C SDA for LEDS and the vibration motors (Wire)
+// pin 9: I2C SCL for LEDS and the vibration motors (Wire)
 // pin 16: TX Used for UART with bluetooth module
 // pin 17: RX Used for UART with bluetooth module
 #define KNOCKPIN_FRONT  D2    // D2 pin : 20
@@ -19,17 +19,11 @@
 #define KNOCKPIN_BOTTOM D7    // D7 pin : 25
 
 
-//----- Constants ----//
-
-#define VIBRATION_DURATION 500        // duration of the vibration in ms
-#define I2C_ADDRESS 0x3E              // the address of the first address of the I2C module (sx1509) (second address: 0x3F, third: 0x70, fourth: 0x71)
-
-
 //----- Variables -----//
 
 PinStatus buildInLED = LOW;
 static unsigned long delay_test = 100;
-String vibrationOutput = "";
+int knockPinHit = 0;
 
 
 //----- Main Functions -----//
@@ -39,11 +33,10 @@ void setup()
   Serial.begin(9600);     // To connect the arduino using a wire
   Serial1.begin(9600);    // UART that uses pins TX and RX to communicate with the bluetooth module
 
-  vibrationSetup();
-  knockSetup();
-  // lightsInit();
+  knockInit();
+  wireInit();
   IMUInit();
-  Scheduler.startLoop(_IMU);
+  // Scheduler.startLoop(_IMU);
   Scheduler.startLoop(checkInput);
 }
 
@@ -63,11 +56,7 @@ void checkInput()
   if (Serial.available() > 0) serialIn(Serial.readStringUntil('\n'));     // Read the incomming data when the arduino is connected using a wire
   if (Serial1.available() > 0) serialIn(Serial1.readStringUntil('\n'));   // Read the incomming data when the arduino is connected using a wire
 
-  if(vibrationOutput.length() > 0) 
-  {
-    if(Serial) Serial.println(vibrationOutput);
-    if(Serial1) Serial1.println(vibrationOutput);
-  }
+  if(knockPinHit > 0) sendKnockPinData();
 
   delay(delay_test);
   yield();
@@ -81,24 +70,57 @@ void serialIn(String inString)
     delay_test = strtol(inString.c_str(), NULL, 10);
     if(delay_test == 0) delay_test = 100;
   }
-  else if( inString.charAt(0) == 'l' )
+  else if( inString.charAt(0) == 'w' )
   {
     inString.remove(0,2);
+
+    int address = inString.substring(0, inString.indexOf(',')).toInt();
+    inString.remove(0,inString.indexOf(',') + 1);
+
     int data = inString.toInt();
-    lights(data);
+    wire(address, data);
   }
-  else if( inString.charAt(0) == 'v' )
+}
+
+void sendKnockPinData()
+{
+  switch (knockPinHit)
   {
-    inString.remove(0,2);
-    int pin = inString.substring(0, inString.indexOf(',')).toInt();
-    inString.remove(0,inString.indexOf(',') + 1);
+    case 1:
+      if(Serial) Serial.println("k,front");
+      if(Serial1) Serial1.println("k,front");
+      knockPinHit = 0;
+      break;
 
-    int dutyCycle = inString.substring(0, inString.indexOf(',')).toInt();
-    inString.remove(0,inString.indexOf(',') + 1);
-      
-    unsigned long duration = strtol(inString.c_str(), NULL, 10);
+    case 2:
+      if(Serial) Serial.println("k,back");
+      if(Serial1) Serial1.println("k,back");
+      knockPinHit = 0;
+      break;
 
-    vibration(pin, dutyCycle, duration);
+    case 3:
+      if(Serial) Serial.println("k,left");
+      if(Serial1) Serial1.println("k,left");
+      knockPinHit = 0;
+      break;
+
+    case 4:
+      if(Serial) Serial.println("k,right");
+      if(Serial1) Serial1.println("k,right");
+      knockPinHit = 0;
+      break;
+
+    case 5:
+      if(Serial) Serial.println("k,top");
+      if(Serial1) Serial1.println("k,top");
+      knockPinHit = 0;
+      break;
+
+    case 6:
+      if(Serial) Serial.println("k,bottom");
+      if(Serial1) Serial1.println("k,bottom");
+      knockPinHit = 0;
+      break;
   }
 }
 
@@ -135,82 +157,57 @@ void _IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
   yield();
 }
 
-void knockSetup()
+void knockInit()
 {
-  pinMode(KNOCKPIN_FRONT,   INPUT_PULLUP);
+  pinMode(KNOCKPIN_FRONT,   INPUT_PULLUP); // INPUT or INPUT_PULLUP
   pinMode(KNOCKPIN_BACK,    INPUT_PULLUP);
-  pinMode(KNOCKPIN_LEFT,    INPUT);
-  pinMode(KNOCKPIN_RIGHT,   INPUT);
-  pinMode(KNOCKPIN_TOP,     INPUT);
+  pinMode(KNOCKPIN_LEFT,    INPUT_PULLUP);
+  pinMode(KNOCKPIN_RIGHT,   INPUT_PULLUP);
+  pinMode(KNOCKPIN_TOP,     INPUT_PULLUP);
   pinMode(KNOCKPIN_BOTTOM,  INPUT_PULLUP);
 
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_FRONT),   knockFront,   FALLING);
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_BACK),    knockBack,    RISING);
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_LEFT),    knockLeft,    RISING);
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_RIGHT),   knockRight,   RISING);
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_TOP),     knockTop,     RISING);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_FRONT),   knockFront,   FALLING); // RISING or FALLING
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_BACK),    knockBack,    FALLING);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_LEFT),    knockLeft,    FALLING);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_RIGHT),   knockRight,   FALLING);
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_TOP),     knockTop,     FALLING);
   attachInterrupt( digitalPinToInterrupt(KNOCKPIN_BOTTOM),  knockBottom,  FALLING);
 }
 void knockFront()
 {
-  vibrationOutput += "k,front\n"
+  knockPinHit = 1;
 }
 void knockBack()
 {
-  vibrationOutput += "k,back\n"
+  knockPinHit = 2;
 }
 void knockLeft()
 {
-  vibrationOutput += "k,left\n"
+  knockPinHit = 3;
 }
 void knockRight()
 {
-  vibrationOutput += "k,right\n"
+  knockPinHit = 4;
 }
 void knockTop()
 {
-  vibrationOutput += "k,top\n"
+  knockPinHit = 5;
 }
 void knockBottom()
 {
-  vibrationOutput += "k,bottom\n"
+  knockPinHit = 6;
 }
 
 
 //----- Outputs -----//
 
-void lightsInit() 
+void wireInit() 
 {
   Wire.begin();  // join i2c bus
 }
-void lights(int data)  // sx1509 io expander using I2C: https://docs.arduino.cc/learn/communication/wire or https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
+void wire(int address, int data)  // sx1509 io expander using I2C: https://docs.arduino.cc/learn/communication/wire or https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
 {
-  Wire.beginTransmission(I2C_ADDRESS);
+  Wire.beginTransmission(address);  // first address: 0x3E, second address: 0x3F, third: 0x70, fourth: 0x71 
   Wire.write(data);
   Wire.endTransmission();
-}
-
-void vibrationSetup()
-{
-  pinMode(A0, OUTPUT);
-  pinMode(A1, OUTPUT);
-  pinMode(A2, OUTPUT);
-  pinMode(A3, OUTPUT);
-  pinMode(A6, OUTPUT);
-  pinMode(A7, OUTPUT);
-}
-void vibration(int pin, int dutyCycle, unsigned long duration)  // GPIO with PWM, pin between 4 - 7 and 10 - 11, dutyCycle between 0 and 255, 
-{
-  if (dutyCycle < 0 || dutyCycle > 255) return;
-  if(pin == 4) pin = A0;
-  else if(pin == 5) pin = A1;
-  else if(pin == 6) pin = A2;
-  else if(pin == 7) pin = A3;
-  else if(pin == 10) pin = A6;
-  else if(pin == 11) pin = A7;
-  else return;
-
-  analogWrite(pin, dutyCycle);
-  delay(duration);
-  analogWrite(pin, 0);
 }
