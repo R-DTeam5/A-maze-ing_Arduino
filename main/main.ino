@@ -7,6 +7,7 @@
 
 
 //----- Pinout -----//
+
 // pin 8: I2C SDA for LEDS and the vibration motors (Wire)
 // pin 9: I2C SCL for LEDS and the vibration motors (Wire)
 // pin 16: TX Used for UART with bluetooth module
@@ -19,14 +20,25 @@
 #define KNOCKPIN_BOTTOM D7    // D7 pin : 25
 
 
+//----- Constants -----//
+
+SX1509 io1;
+SX1509 io2;
+SX1509 io3;
+
+#define IO1_ADDRESS 0x3E
+#define IO2_ADDRESS 0x3F
+#define IO3_ADDRESS 0x70
+
+
 //----- Variables -----//
 
 PinStatus buildInLED = LOW;
-static unsigned long delay_test = 100;
+static unsigned long measurementDelay = 100;
 int knockPinHit = 0;
 
 
-//----- Main Functions -----//
+//----- Main Arduino Functions -----//
 
 void setup() 
 {
@@ -36,7 +48,7 @@ void setup()
   knockInit();
   wireInit();
   IMUInit();
-  // Scheduler.startLoop(_IMU);
+  Scheduler.startLoop(_IMU);
   Scheduler.startLoop(checkInput);
 }
 
@@ -49,16 +61,16 @@ void loop()
 }
 
 
-//----- PC_IO ----//
+//----- Serial Communication (with PC and Bluetooth module) ----//
 
 void checkInput()
 {
   if (Serial.available() > 0) serialIn(Serial.readStringUntil('\n'));     // Read the incomming data when the arduino is connected using a wire
-  if (Serial1.available() > 0) serialIn(Serial1.readStringUntil('\n'));   // Read the incomming data when the arduino is connected using a wire
+  if (Serial1.available() > 0) serialIn(Serial1.readStringUntil('\n'));   // Read the incomming data when the arduino is connected using Bluetooth
 
   if(knockPinHit > 0) sendKnockPinData();
 
-  delay(delay_test);
+  delay(measurementDelay);
   yield();
 }
 
@@ -67,18 +79,21 @@ void serialIn(String inString)
   if ( inString.charAt(0) == 'd' )
   {
     inString.remove(0,2); // remove the "d,"
-    delay_test = strtol(inString.c_str(), NULL, 10);
-    if(delay_test == 0) delay_test = 100;
+    measurementDelay = strtol(inString.c_str(), NULL, 10);
+    if(measurementDelay == 0) measurementDelay = 100;
   }
   else if( inString.charAt(0) == 'w' )
   {
     inString.remove(0,2);
 
-    int address = inString.substring(0, inString.indexOf(',')).toInt();
+    int board = inString.substring(0, inString.indexOf(',')).toInt();
     inString.remove(0,inString.indexOf(',') + 1);
 
-    int data = inString.toInt();
-    wire(address, data);
+    int pin = inString.substring(0, inString.indexOf(',')).toInt();
+    inString.remove(0,inString.indexOf(',') + 1);
+
+    int value = inString.toInt();
+    wire(board, pin, value);
   }
 }
 
@@ -89,43 +104,38 @@ void sendKnockPinData()
     case 1:
       if(Serial) Serial.println("k,front");
       if(Serial1) Serial1.println("k,front");
-      knockPinHit = 0;
       break;
 
     case 2:
       if(Serial) Serial.println("k,back");
       if(Serial1) Serial1.println("k,back");
-      knockPinHit = 0;
       break;
 
     case 3:
       if(Serial) Serial.println("k,left");
       if(Serial1) Serial1.println("k,left");
-      knockPinHit = 0;
       break;
 
     case 4:
       if(Serial) Serial.println("k,right");
       if(Serial1) Serial1.println("k,right");
-      knockPinHit = 0;
       break;
 
     case 5:
       if(Serial) Serial.println("k,top");
       if(Serial1) Serial1.println("k,top");
-      knockPinHit = 0;
       break;
 
     case 6:
       if(Serial) Serial.println("k,bottom");
       if(Serial1) Serial1.println("k,bottom");
-      knockPinHit = 0;
       break;
   }
+  knockPinHit = 0;
 }
 
 
-//----- Inputs -----//
+//----- IMU data handler -----//
 
 void IMUInit() 
 {
@@ -148,25 +158,31 @@ void _IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
   IMUData.concat(",");
   IMUData.concat(acceleroZ);
   IMUData.concat(",");
+  IMUData.concat(gyroX);
+  IMUData.concat(",");
+  IMUData.concat(gyroY);
+  IMUData.concat(",");
   IMUData.concat(gyroZ);
 
   if(Serial) Serial.println(IMUData);
   if(Serial1) Serial1.println(IMUData);
 
-  delay(delay_test);
+  delay(measurementDelay);
   yield();
 }
 
+//----- Interrupts for the knock sensors -----//
+
 void knockInit()
 {
-  pinMode(KNOCKPIN_FRONT,   INPUT_PULLUP); // INPUT or INPUT_PULLUP
+  pinMode(KNOCKPIN_FRONT,   INPUT_PULLUP);
   pinMode(KNOCKPIN_BACK,    INPUT_PULLUP);
   pinMode(KNOCKPIN_LEFT,    INPUT_PULLUP);
   pinMode(KNOCKPIN_RIGHT,   INPUT_PULLUP);
   pinMode(KNOCKPIN_TOP,     INPUT_PULLUP);
   pinMode(KNOCKPIN_BOTTOM,  INPUT_PULLUP);
 
-  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_FRONT),   knockFront,   FALLING); // RISING or FALLING
+  attachInterrupt( digitalPinToInterrupt(KNOCKPIN_FRONT),   knockFront,   FALLING);
   attachInterrupt( digitalPinToInterrupt(KNOCKPIN_BACK),    knockBack,    FALLING);
   attachInterrupt( digitalPinToInterrupt(KNOCKPIN_LEFT),    knockLeft,    FALLING);
   attachInterrupt( digitalPinToInterrupt(KNOCKPIN_RIGHT),   knockRight,   FALLING);
@@ -199,15 +215,24 @@ void knockBottom()
 }
 
 
-//----- Outputs -----//
+//----- IO-expander using I2C -----//
 
-void wireInit() 
+void wireInit() // sx1509 io expander using I2C: https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
 {
   Wire.begin();  // join i2c bus
+  io1.begin(IO1_ADDRESS);
+  io2.begin(IO2_ADDRESS);
+  io3.begin(IO3_ADDRESS);
+  for(int i = 0; i < 16; i++)
+  {
+    io1.pinMode(i, ANALOG_OUTPUT);
+    io2.pinMode(i, ANALOG_OUTPUT);
+    io3.pinMode(i, ANALOG_OUTPUT);
+  }
 }
-void wire(int address, int data)  // sx1509 io expander using I2C: https://docs.arduino.cc/learn/communication/wire or https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
+void wire(int board, int pin, int value)
 {
-  Wire.beginTransmission(address);  // first address: 0x3E, second address: 0x3F, third: 0x70, fourth: 0x71 
-  Wire.write(data);
-  Wire.endTransmission();
+  if(board == 1) io1.analogWrite(pin, value);
+  else if(board == 2) io2.analogWrite(pin, value);
+  else if(board == 3) io3.analogWrite(pin, value);
 }
