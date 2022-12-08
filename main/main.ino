@@ -22,14 +22,11 @@
 
 //----- Constants -----//
 
-SX1509 io1;
-SX1509 io2;
-SX1509 io3;
-
 #define IO1_ADDRESS 0x3E
 #define IO2_ADDRESS 0x3F
-#define IO3_ADDRESS 0x70
 
+SX1509 io1;
+SX1509 io2;
 
 //----- Variables -----//
 
@@ -87,10 +84,10 @@ void serialIn(String inString)
     inString.remove(0,2);
 
     int board = inString.substring(0, inString.indexOf(',')).toInt();
-    inString.remove(0,inString.indexOf(',') + 1);
+    inString.remove(0, inString.indexOf(',') + 1);
 
     int pin = inString.substring(0, inString.indexOf(',')).toInt();
-    inString.remove(0,inString.indexOf(',') + 1);
+    inString.remove(0, inString.indexOf(',') + 1);
 
     int value = inString.toInt();
     wire(board, pin, value);
@@ -219,20 +216,18 @@ void knockBottom()
 
 void wireInit() // sx1509 io expander using I2C: https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
 {
+  if(Serial) Serial.println("initializing wire");
   Wire.begin();  // join i2c bus
   io1.begin(IO1_ADDRESS);
   io2.begin(IO2_ADDRESS);
-  io3.begin(IO3_ADDRESS);
   for(int i = 0; i < 16; i++)
   {
     io1.pinMode(i, ANALOG_OUTPUT);
     io2.pinMode(i, ANALOG_OUTPUT);
-    io3.pinMode(i, ANALOG_OUTPUT);
   }
 }
 void wire(int board, int pin, int value)
 {
   if(board == 1) io1.analogWrite(pin, value);
   else if(board == 2) io2.analogWrite(pin, value);
-  else if(board == 3) io3.analogWrite(pin, value);
 }
