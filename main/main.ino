@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <SparkFunSX1509.h>
 #include <Scheduler.h>
+#include <vector>
 
 
 //----- Pinout -----//
@@ -23,14 +24,18 @@
 //----- Constants -----//
 
 #define IO1_ADDRESS 0x3E
-#define IO2_ADDRESS 0x3F
+#define IO2_ADDRESS 0x70
 
 SX1509 io1;
 SX1509 io2;
 
+// A vector of the vibration pins : pair<board, pin>
+std::vector<std::pair<int, int>> vibratorPins = {std::pair<int, int>(1,0), std::pair<int, int>(1,1), std::pair<int, int>(1,2), std::pair<int, int>(1,3) // bottom plane
+                                                };
+
 //----- Variables -----//
 
-PinStatus buildInLED = LOW;
+PinStatus buildInLED = HIGH;
 static unsigned long measurementDelay = 100;
 int knockPinHit = 0;
 
@@ -39,11 +44,12 @@ int knockPinHit = 0;
 
 void setup() 
 {
+  digitalWrite(LED_BUILTIN, buildInLED);  
   Serial.begin(9600);     // To connect the arduino using a wire
   Serial1.begin(9600);    // UART that uses pins TX and RX to communicate with the bluetooth module
 
   knockInit();
-  wireInit();
+  //wireInit();
   IMUInit();
   Scheduler.startLoop(_IMU);
   Scheduler.startLoop(checkInput);
@@ -220,6 +226,7 @@ void wireInit() // sx1509 io expander using I2C: https://github.com/sparkfun/Spa
   Wire.begin();  // join i2c bus
   io1.begin(IO1_ADDRESS);
   io2.begin(IO2_ADDRESS);
+  
   for(int i = 0; i < 16; i++)
   {
     io1.pinMode(i, ANALOG_OUTPUT);
@@ -230,4 +237,10 @@ void wire(int board, int pin, int value)
 {
   if(board == 1) io1.analogWrite(pin, value);
   else if(board == 2) io2.analogWrite(pin, value);
+  if(std::find(vibratorPins.begin(), vibratorPins.end(), std::pair<int, int>(board, pin)) != vibratorPins.end())
+  {
+    delay(100);
+    if(board == 1) io1.analogWrite(pin, 255);
+    else if(board == 2) io2.analogWrite(pin, 255);
+  }
 }
