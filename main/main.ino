@@ -4,7 +4,6 @@
 #include <Wire.h>
 #include <SparkFunSX1509.h>
 #include <Scheduler.h>
-#include <vector>
 
 
 //----- Pinout -----//
@@ -13,8 +12,8 @@
 // pin 9: I2C SCL for LEDS and the vibration motors (Wire)
 // pin 16: TX Used for UART with bluetooth module
 // pin 17: RX Used for UART with bluetooth module
-#define KNOCKPIN_FRONT  D2    // D2 pin : 20
-#define KNOCKPIN_BACK   D3    // D3 pin : 21
+#define KNOCKPIN_FRONT  D8    // D2 pin : 20
+#define KNOCKPIN_BACK   D9    // D3 pin : 21
 #define KNOCKPIN_LEFT   D4    // D4 pin : 22
 #define KNOCKPIN_RIGHT  D5    // D5 pin : 23
 #define KNOCKPIN_TOP    D6    // D6 pin : 24
@@ -23,15 +22,8 @@
 
 //----- Constants -----//
 
-#define IO1_ADDRESS 0x3E
-#define IO2_ADDRESS 0x70
-
-SX1509 io1;
-SX1509 io2;
-
-// A vector of the vibration pins : pair<board, pin>
-std::vector<std::pair<int, int>> vibratorPins = {std::pair<int, int>(1,0), std::pair<int, int>(1,1), std::pair<int, int>(1,2), std::pair<int, int>(1,3) // bottom plane
-                                                };
+#define IO_ADDRESS 0x3E
+SX1509 ioExpander;
 
 //----- Variables -----//
 
@@ -49,7 +41,7 @@ void setup()
   Serial1.begin(9600);    // UART that uses pins TX and RX to communicate with the bluetooth module
 
   knockInit();
-  //wireInit();
+  wireInit();
   IMUInit();
   Scheduler.startLoop(_IMU);
   Scheduler.startLoop(checkInput);
@@ -105,33 +97,81 @@ void sendKnockPinData()
   switch (knockPinHit)
   {
     case 1:
-      if(Serial) Serial.println("k,front");
-      if(Serial1) Serial1.println("k,front");
+      if(Serial) 
+      {
+        Serial.println("k,right");
+        Serial.flush();
+      }
+      if(Serial1) 
+      {
+        Serial1.println("k,right");
+        Serial1.flush();
+      }
       break;
 
     case 2:
-      if(Serial) Serial.println("k,back");
-      if(Serial1) Serial1.println("k,back");
+      if(Serial) 
+      {
+        Serial.println("k,back");
+        Serial.flush();
+      }
+      if(Serial1) 
+      {
+        Serial1.println("k,back");
+        Serial1.flush();
+      }
       break;
 
     case 3:
-      if(Serial) Serial.println("k,left");
-      if(Serial1) Serial1.println("k,left");
+      if(Serial) 
+      {
+        Serial.println("k,left");
+        Serial.flush();
+      }
+      if(Serial1) 
+      {
+        Serial1.println("k,left");
+        Serial1.flush();
+      }
       break;
 
     case 4:
-      if(Serial) Serial.println("k,right");
-      if(Serial1) Serial1.println("k,right");
+      if(Serial) 
+      {
+        Serial.println("k,bottom");
+        Serial.flush();
+      }
+      if(Serial1) 
+      {
+        Serial1.println("k,bottom");
+        Serial1.flush();
+      }
       break;
 
     case 5:
-      if(Serial) Serial.println("k,top");
-      if(Serial1) Serial1.println("k,top");
+      if(Serial) 
+      {
+        Serial.println("k,top");
+        Serial.flush();
+      }
+      if(Serial1) 
+      {
+        Serial1.println("k,top");
+        Serial1.flush();
+      }
       break;
 
     case 6:
-      if(Serial) Serial.println("k,bottom");
-      if(Serial1) Serial1.println("k,bottom");
+      if(Serial) 
+      {
+        Serial.println("k,front");
+        Serial.flush();
+      }
+      if(Serial1) 
+      {
+        Serial1.println("k,front");
+        Serial1.flush();
+      }
       break;
   }
   knockPinHit = 0;
@@ -167,8 +207,16 @@ void _IMU()  // https://docs.arduino.cc/tutorials/nano-33-ble/imu-accelerometer
   IMUData.concat(",");
   IMUData.concat(gyroZ);
 
-  if(Serial) Serial.println(IMUData);
-  if(Serial1) Serial1.println(IMUData);
+  if(Serial) 
+  {
+    Serial.println(IMUData);
+    Serial.flush();
+  }
+  if(Serial1) 
+  {
+    Serial1.println(IMUData);
+    Serial1.flush();
+  }
 
   delay(measurementDelay);
   yield();
@@ -222,25 +270,20 @@ void knockBottom()
 
 void wireInit() // sx1509 io expander using I2C: https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
 {
-  if(Serial) Serial.println("initializing wire");
   Wire.begin();  // join i2c bus
-  io1.begin(IO1_ADDRESS);
-  io2.begin(IO2_ADDRESS);
-  
-  for(int i = 0; i < 16; i++)
-  {
-    io1.pinMode(i, ANALOG_OUTPUT);
-    io2.pinMode(i, ANALOG_OUTPUT);
-  }
+  ioExpander.begin(IO_ADDRESS);
+  for(int i = 0; i < 16; i++) 
+    ioExpander.pinMode(i, ANALOG_OUTPUT);    
 }
 void wire(int board, int pin, int value)
 {
-  if(board == 1) io1.analogWrite(pin, value);
-  else if(board == 2) io2.analogWrite(pin, value);
-  if(std::find(vibratorPins.begin(), vibratorPins.end(), std::pair<int, int>(board, pin)) != vibratorPins.end())
+  if (pin >= 0 && pin <= 5)
   {
-    delay(100);
-    if(board == 1) io1.analogWrite(pin, 255);
-    else if(board == 2) io2.analogWrite(pin, 255);
+    ioExpander.analogWrite(0, 50);
+    ioExpander.analogWrite(2, 50);
+    delay(50);
+    ioExpander.analogWrite(0, 255);
+    ioExpander.analogWrite(2, 255);
   }
+  else ioExpander.analogWrite(pin, value);
 }
